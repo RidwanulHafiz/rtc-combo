@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Webrtc</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="application/javascript"
+            src="socket.js"></script>
+</head>
+<body>
+
+<video id="local" autoplay></video>
+<video id="remote" autoplay></video>
+
+<script type="application/javascript">
+    var socket = io.connect('http://localhost:3000');
+    var peerConnCfg = {'iceServers': [{'url': 'stun:stun.l.google.com:19302'}]},
+        peerConn = new RTCPeerConnection(peerConnCfg);
+    peerConn.onicecandidate = function (evt) {
+        if (!evt || !evt.candidate) return;
+        console.log('==============');
+        console.log('Ice Candidate');
+        console.log('==============');
+        console.log(evt.candidate);
+        socket.emit('ice', {"candidate": evt.candidate})
+    }
+
+    function call() {
+        navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+        navigator.getUserMedia({audio: true, video: true},
+            function (stream) {
+                var video = document.getElementById('local');
+                video.src = window.URL.createObjectURL(stream);
+                peerConn.addStream(stream);
+                peerConn.createOffer(
+                    function (offer) {
+                        var off = new RTCSessionDescription(offer);
+                        peerConn.setLocalDescription(new RTCSessionDescription(off),
+                            function () {
+                                socket.emit('call', JSON.stringify({"sdp": off}));
+                            },
+                            function (error) {
+                                console.log(error);
+                            }
+                        );
+                    },
+                    function (error) {
+                        console.log(error);
+                    }
+                );
+            },
+            function (err) {
+                console.log("The following error occurred: " + err.name);
+            }
+        );
+    }
+    function answer() {
+        navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+        navigator.getUserMedia({audio: true, video: true},
+            function (stream) {
+                var video = document.getElementById('local');
+                video.src = window.URL.createObjectURL(stream);
+                peerConn.addStream(stream);
+                peerConn.createOffer(
+                    function (offer) {
+                        var off = new RTCSessionDescription(offer);
+                        peerConn.setLocalDescription(new RTCSessionDescription(off),
+                            function () {
+                                socket.emit('answer', JSON.stringify({"sdp": off}));
+                            },
+                            function (error) {
+                                console.log(error);
+                            }
+                        );
+                    },
+                    function (error) {
+                        console.log(error);
+                    }
+                );
+            },
+            function (err) {
+                console.log("The following error occurred: " + err.name);
+            }
+        );
+    }
+    function onAddStreamHandler(evt) {
+        console.log(JSON.stringify(evt));
+        var video = document.getElementById('remote');
+        video.src = URL.createObjectURL(evt.stream);
+    };
+    /*function receive(data) {
+        navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+        navigator.getUserMedia({audio: true, video: true},
+            function (stream) {
+                var video = document.getElementById('local');
+                video.src = window.URL.createObjectURL(stream);
+                peerConn.addStream(stream);
+                peerConn.createAnswer(
+                    function (answer) {
+                        var ans = new RTCSessionDescription(answer);
+                        peerConn.setLocalDescription(ans, function() {
+                                socket.emit('call', JSON.stringify({"sdp": off}));
+                            },
+                            function (error) {
+                                console.log(error);
+                            }
+                        );
+                    },
+                    function (error) {
+                        console.log(error);
+                    }
+                );
+            },
+            function (err) {
+                console.log("The following error occurred: " + err.name);
+            }
+        );
+    }*/
+    window.addEventListener("load", function (evt) {
+        peerConn.onaddstream = onAddStreamHandler;
+        call();
+        socket.on('call', function (data) {
+            console.log('==============');
+            console.log('Incoming Call');
+            console.log('==============');
+            console.log(JSON.parse(data));
+            var signal = JSON.parse(data);
+            answer();
+            if (signal.sdp) {
+                peerConn.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            }
+
+            /*receive(data);
+            var signal = JSON.parse(data);
+            if (signal.sdp) {
+                peerConn.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            } else if (signal.candidate) {
+                peerConn.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } else if (signal.closeConnection){
+                endCall();
+            }*/
+        });
+        socket.on('answer', function (data) {
+            console.log('==============');
+            console.log('Call Received');
+            console.log('==============');
+            console.log(JSON.parse(data));
+            /*receive(data);
+            var signal = JSON.parse(data);
+            if (signal.sdp) {
+                peerConn.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            } else if (signal.candidate) {
+                peerConn.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } else if (signal.closeConnection){
+                endCall();
+            }*/
+        });
+    });
+</script>
+</body>
+</html>
